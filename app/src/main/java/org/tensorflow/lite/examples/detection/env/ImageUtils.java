@@ -215,4 +215,25 @@ public class ImageUtils {
 
     return matrix;
   }
+
+  public static Matrix getEnvelopeTransformationMatrix(
+      final int srcWidth,
+      final int srcHeight,
+      final int dstWidth,
+      final int dstHeight,
+      final int applyRotation
+    ) {
+
+    float scale = (float) dstWidth / srcWidth;
+
+    float xTranslation = 0.0f;
+    float yTranslation = (dstHeight - srcHeight * scale) / 2.0f;
+
+    final Matrix matrix = new Matrix();
+
+    matrix.postTranslate(xTranslation, yTranslation);
+    matrix.preScale(scale, scale);
+
+    return matrix;
+  }
 }

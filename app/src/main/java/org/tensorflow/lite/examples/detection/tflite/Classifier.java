@@ -21,7 +21,11 @@ import java.util.List;
 
 /** Generic interface for interacting with different recognition engines. */
 public interface Classifier {
-  List<Recognition> recognizeImage(Bitmap bitmap, int[][][] loadedIntValues);
+  List<Recognition> recognizeImage(final Bitmap bitmap);
+
+  List<Recognition> recognizeImage(final Bitmap bitmap, final float minimumConfidence);
+
+  List<Recognition> recognizeImage(final Bitmap bitmap, final int[][][] loadedIntValues);
 
   void enableStatLogging(final boolean debug);
 
@@ -34,7 +38,7 @@ public interface Classifier {
   void setUseNNAPI(boolean isChecked);
 
   /** An immutable result returned by a Classifier describing what was recognized. */
-  public class Recognition {
+  class Recognition {
     /**
      * A unique identifier for what has been recognized. Specific to the class, not the instance of
      * the object.

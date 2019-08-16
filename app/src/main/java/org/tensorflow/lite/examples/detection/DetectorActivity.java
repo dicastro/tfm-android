@@ -46,6 +46,7 @@ import org.tensorflow.lite.examples.detection.env.Logger;
 import org.tensorflow.lite.examples.detection.tflite.Classifier;
 import org.tensorflow.lite.examples.detection.tflite.TFLiteObjectDetectionAPIModel;
 import org.tensorflow.lite.examples.detection.tflite.TFLiteYoloV3TinyAPIModel;
+import org.tensorflow.lite.examples.detection.tflite.TFLiteYoloV3TinyDebugAPIModel;
 import org.tensorflow.lite.examples.detection.tracking.MultiBoxTracker;
 
 /**
@@ -82,6 +83,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
   private Integer sensorOrientation;
 
   private Classifier detector;
+  private float minimumConfidence;
 
   private long lastProcessingTimeMs;
   private Bitmap rgbFrameBitmap = null;
@@ -132,17 +134,31 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
       finish();
     }
 
+    switch (MODE) {
+      case TF_OD_API:
+        minimumConfidence = MINIMUM_CONFIDENCE_TF_OD_API;
+        break;
+      case TF_YOLO_V3_TINY_API:
+        minimumConfidence = MINIMUM_CONFIDENCE_TF_YOLO_V3_TINY_API;
+        break;
+      default:
+        minimumConfidence = 0.5f;
+        break;
+    }
+
     previewWidth = size.getWidth();
     previewHeight = size.getHeight();
 
-    sensorOrientation = rotation - getScreenOrientation();
+    sensorOrientation = rotation - getScreenOrientation() - 90; // rotation is always 90, I do not understand why (this parameter is fixed and comes from CameraActivity class)
     LOGGER.i("Camera orientation relative to screen canvas: %d", sensorOrientation);
 
     LOGGER.i("Initializing at size %dx%d", previewWidth, previewHeight);
     rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Config.ARGB_8888);
     croppedBitmap = Bitmap.createBitmap(cropSize, cropSize, Config.ARGB_8888);
 
-    frameToCropTransform = ImageUtils.getTransformationMatrix(previewWidth, previewHeight, cropSize, cropSize, sensorOrientation, MAINTAIN_ASPECT);
+    frameToCropTransform = ImageUtils.getEnvelopeTransformationMatrix(previewWidth, previewHeight, cropSize, cropSize, sensorOrientation);
+
+//    frameToCropTransform = ImageUtils.getTransformationMatrix(previewWidth, previewHeight, cropSize, cropSize, sensorOrientation, MAINTAIN_ASPECT);
 
     cropToFrameTransform = new Matrix();
     frameToCropTransform.invert(cropToFrameTransform);
@@ -173,7 +189,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
         String[] columns = line.split(" ");
 
         for (int c = 0; c < columns.length; c++) {
-          loadedIntValues[lineNumber][c][0] = new Integer(columns[c]);
+          loadedIntValues[lineNumber][c][0] = Integer.valueOf(columns[c]);
         }
 
         lineNumber++;
@@ -190,7 +206,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
         String[] columns = line.split(" ");
 
         for (int c = 0; c < columns.length; c++) {
-          loadedIntValues[lineNumber][c][1] = new Integer(columns[c]);
+          loadedIntValues[lineNumber][c][1] = Integer.valueOf(columns[c]);
         }
 
         lineNumber++;
@@ -207,7 +223,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
         String[] columns = line.split(" ");
 
         for (int c = 0; c < columns.length; c++) {
-          loadedIntValues[lineNumber][c][2] = new Integer(columns[c]);
+          loadedIntValues[lineNumber][c][2] = Integer.valueOf(columns[c]);
         }
 
         lineNumber++;
@@ -243,28 +259,31 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 //    } catch (Exception ignored) {
 //    }
 
-    final Canvas canvas = new Canvas(croppedBitmap);
+    //--------------------------
+    Canvas canvas = new Canvas(croppedBitmap);
+    canvas.drawColor(0xFF7F7F7F); // Gray
     canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
+    //--------------------------
+
+//    final Canvas canvas = new Canvas(croppedBitmap);
+//    canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
 
     // For examining the actual TF input.
     if (SAVE_PREVIEW_BITMAP) {
       ImageUtils.saveBitmap(croppedBitmap);
     }
 
-    try (InputStream stream = getAssets().open("g0010119-preprocessed-new.jpg")) {
-      BitmapFactory.Options croppedBitmapOptions = new BitmapFactory.Options();
-      //croppedBitmapOptions.inDensity = 96;
-
-      croppedBitmap = BitmapFactory.decodeStream(stream, null, croppedBitmapOptions);
-    } catch (Exception ignored) {
-    }
+//    try (InputStream stream = getAssets().open("g0010119-preprocessed.jpg")) {
+//      croppedBitmap = BitmapFactory.decodeStream(stream);
+//    } catch (Exception ignored) {
+//    }
 
     runInBackground(new Runnable() {
       @Override
       public void run() {
         LOGGER.i("Running detection on image " + currTimestamp);
         final long startTime = SystemClock.uptimeMillis();
-        final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap, loadIntValues());
+        final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap, minimumConfidence);
         lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
 
         cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
@@ -275,33 +294,17 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
         paint.setStyle(Style.STROKE);
         paint.setStrokeWidth(1.0f);
 
-        float minimumConfidence;
-
-        switch (MODE) {
-          case TF_OD_API:
-            minimumConfidence = MINIMUM_CONFIDENCE_TF_OD_API;
-            break;
-          case TF_YOLO_V3_TINY_API:
-            minimumConfidence = MINIMUM_CONFIDENCE_TF_YOLO_V3_TINY_API;
-            break;
-          default:
-            minimumConfidence = 0.5f;
-            break;
-        }
-
-        final List<Classifier.Recognition> mappedRecognitions = new LinkedList<Classifier.Recognition>();
+        final List<Classifier.Recognition> mappedRecognitions = new LinkedList<>();
 
         for (final Classifier.Recognition result : results) {
           final RectF location = result.getLocation();
 
-          if (location != null && result.getConfidence() >= minimumConfidence) {
-            canvas.drawRect(location, paint);
+          canvas.drawRect(result.getLocation(), paint);
 
-            cropToFrameTransform.mapRect(location);
+          cropToFrameTransform.mapRect(location);
 
-            result.setLocation(location);
-            mappedRecognitions.add(result);
-          }
+          result.setLocation(location);
+          mappedRecognitions.add(result);
         }
 
         tracker.trackResults(mappedRecognitions, currTimestamp);
@@ -334,7 +337,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
   // Which detection model to use: by default uses Tensorflow Object Detection API frozen
   // checkpoints.
   private enum DetectorMode {
-    TF_OD_API, TF_YOLO_V3_TINY_API;
+    TF_OD_API, TF_YOLO_V3_TINY_API
   }
 
   @Override

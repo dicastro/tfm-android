@@ -45,18 +45,20 @@ import java.util.Vector;
  * Wrapper for frozen detection models trained using the Tensorflow Object Detection API:
  * github.com/tensorflow/models/tree/master/research/object_detection
  */
-public class TFLiteYoloV3TinyAPIModel implements Classifier {
+public class TFLiteYoloV3TinyDebugAPIModel implements Classifier {
   private static final Logger LOGGER = new Logger();
 
+  // Only return this many results.
+  private static final int NUM_DETECTIONS = 10;
   // Float model
   private static final float IMAGE_MAX_VALUE = 255.0f;
   // Number of threads in the java app
-  private static final int NUM_THREADS = 7;
+  private static final int NUM_THREADS = 4;
   private boolean isModelQuantized;
   // Config values.
   private int inputSize;
   // Pre-allocated buffers.
-  private Vector<String> labels = new Vector<>();
+  private Vector<String> labels = new Vector<String>();
   private int[] intValues;
   // outputLocations
   private float[][][][] output1;
@@ -69,7 +71,7 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
 
   private Interpreter tfLite;
 
-  private TFLiteYoloV3TinyAPIModel() {}
+  private TFLiteYoloV3TinyDebugAPIModel() {}
 
   /** Memory-map the model file in Assets. */
   private static MappedByteBuffer loadModelFile(AssetManager assets, String modelFilename) throws IOException {
@@ -91,10 +93,11 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
    * @param isQuantized Boolean representing model is quantized or not
    */
   public static Classifier create(final AssetManager assetManager, final String modelFilename, final String labelFilename, final int inputSize, final boolean isQuantized) throws IOException {
-    final TFLiteYoloV3TinyAPIModel d = new TFLiteYoloV3TinyAPIModel();
+    final TFLiteYoloV3TinyDebugAPIModel d = new TFLiteYoloV3TinyDebugAPIModel();
 
+    InputStream labelsInput = null;
     String actualFilename = labelFilename.split("file:///android_asset/")[1];
-    InputStream labelsInput = assetManager.open(actualFilename);
+    labelsInput = assetManager.open(actualFilename);
 
     try(BufferedReader br = new BufferedReader(new InputStreamReader(labelsInput))) {
       String line;
@@ -107,7 +110,7 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
     d.inputSize = inputSize;
 
     try {
-      Interpreter.Options interpreterOptions = new Interpreter.Options().setNumThreads(NUM_THREADS);
+      Interpreter.Options interpreterOptions = new Interpreter.Options().setNumThreads(NUM_THREADS).setAllowFp16PrecisionForFp32(Boolean.TRUE);
 
       d.tfLite = new Interpreter(loadModelFile(assetManager, modelFilename), interpreterOptions);
     } catch (Exception e) {
@@ -124,7 +127,7 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
       numBytesPerChannel = 4; // Floating point
     }
 
-    d.imgData = ByteBuffer.allocateDirect(d.inputSize * d.inputSize * 3 * numBytesPerChannel);
+    d.imgData = ByteBuffer.allocateDirect(1 * d.inputSize * d.inputSize * 3 * numBytesPerChannel);
     d.imgData.order(ByteOrder.nativeOrder());
     d.intValues = new int[d.inputSize * d.inputSize];
 
@@ -140,12 +143,12 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
   }
 
   @Override
-  public List<Recognition> recognizeImage(final Bitmap bitmap, final int[][][] loadedIntValues) {
+  public List<Recognition> recognizeImage(final Bitmap bitmap, final float minimumConfidence) {
     throw new RuntimeException("Not implemented");
   }
 
   @Override
-  public List<Recognition> recognizeImage(final Bitmap bitmap, final float minimumConfidence) {
+  public List<Recognition> recognizeImage(final Bitmap bitmap, final int[][][] loadedIntValues) {
     // Log this method so that it can be analyzed with systrace.
     Trace.beginSection("recognizeImage");
 
@@ -171,6 +174,45 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
         }
       }
     }
+    // Test 1 - OK
+//    for (int i = 0; i < inputSize; ++i) {
+//      for (int j = 0; j < inputSize; ++j) {
+//        if (isModelQuantized) {
+//          // Quantized model
+//          imgData.put((byte) loadedIntValues[i][j][2]);
+//          imgData.put((byte) loadedIntValues[i][j][1]);
+//          imgData.put((byte) loadedIntValues[i][j][0]);
+//        } else { // Float model
+//          imgData.putFloat(loadedIntValues[i][j][2] / IMAGE_MAX_VALUE);
+//          imgData.putFloat(loadedIntValues[i][j][1] / IMAGE_MAX_VALUE);
+//          imgData.putFloat(loadedIntValues[i][j][0] / IMAGE_MAX_VALUE);
+//        }
+//      }
+//    }
+    // Test 2
+//    float[][][][] floatValues = new float[1][inputSize][inputSize][3];
+//
+//    for (int y = 0; y < inputSize; y++) {
+//      for (int x = 0; x < inputSize; x++) {
+//        floatValues[0][y][x][0] = loadedIntValues[y][x][2] / 255.0f;
+//        floatValues[0][y][x][1] = loadedIntValues[y][x][1] / 255.0f;
+//        floatValues[0][y][x][2] = loadedIntValues[y][x][0] / 255.0f;
+//      }
+//    }
+    // Test 3
+//    float[][][][] floatValues = new float[1][inputSize][inputSize][3];
+//
+//    for (int y = 0; y < inputSize; y++) {
+//      for (int x = 0; x < inputSize; x++) {
+//        floatValues[0][y][x][0] = 0.11253756f;
+//        floatValues[0][y][x][1] = 0.11253756f;
+//        floatValues[0][y][x][2] = 0.11253756f;
+//      }
+//    }
+
+//    floatValues[0][0][0][0] = 1.0f;
+//    floatValues[0][0][0][1] = 1.0f;
+//    floatValues[0][0][0][2] = 1.0f;
 
     Trace.endSection(); // preprocessBitmap
 
@@ -179,10 +221,21 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
     output1 = new float[1][8][8][18];
     output2 = new float[1][16][16][18];
 
+    ByteBuffer outputBB1 = ByteBuffer.allocateDirect(1 * 8 * 8 * 18 * 4);
+    outputBB1.order(ByteOrder.nativeOrder());
+    outputBB1.rewind();
+
+    ByteBuffer outputBB2 = ByteBuffer.allocateDirect(1 * 16 * 16 * 18 * 4);
+    outputBB1.order(ByteOrder.nativeOrder());
+    outputBB2.rewind();
+
     Object[] inputArray = {imgData};
+//    Object[] inputArray = {floatValues};
     Map<Integer, Object> outputMap = new HashMap<>();
     outputMap.put(0, output1);
     outputMap.put(1, output2);
+//    outputMap.put(0, outputBB1);
+//    outputMap.put(1, outputBB2);
     Trace.endSection();
 
     // Run the inference call.
@@ -192,14 +245,15 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
 
     // Show the best detections.
     // after scaling them back to the input size.
-    final List<Recognition> recognitions = new ArrayList<>();
+    final List<Recognition> recognitions = new ArrayList<>(NUM_DETECTIONS);
 
-    recognitions.addAll(decodeNetout(output1[0], 8, 8, anchors1, minimumConfidence));
-    recognitions.addAll(decodeNetout(output2[0], 16, 16, anchors2, minimumConfidence));
+    recognitions.addAll(decodeNetout(output1[0], 8, 8, anchors1, 256, 256));
+    recognitions.addAll(decodeNetout(output2[0], 16, 16, anchors2, 256, 256));
 
-    correctYoloBoxes(recognitions);
+//    correctYoloBoxes(recognitions, 256, 256, bitmap.getWidth(), bitmap.getHeight());
+    correctYoloBoxes(recognitions, 256, 256, 640, 480);
 
-    final List<Recognition> filteredRecognitions = doNms(recognitions);
+    final List<Recognition> filteredRecognitions = doNms(recognitions, .2f);
 
     Trace.endSection(); // "recognizeImage"
     return filteredRecognitions;
@@ -228,12 +282,10 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
     }
   }
 
-  private List<Recognition> decodeNetout(final float[][][] netout, final int gridHeight, final int gridWidth, final int[] anchors, final float minimumConfidence) {
+  private List<Recognition> decodeNetout(float[][][] netout, int gridHeight, int gridWidth, int[] anchors, int netHeight, int netWidth) {
     int NUM_BOXES_PER_BLOCK = 3;
-    int numClasses = labels.size();
-
-    int netWidth = inputSize;
-    int netHeight = inputSize;
+    int NUM_CLASSES = 1;
+    float THRESHOLD = 0.5f;
 
     // Find the best detections.
     List<Recognition> detections = new ArrayList<>();
@@ -241,20 +293,20 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
     for (int y = 0; y < gridHeight; ++y) {
       for (int x = 0; x < gridWidth; ++x) {
         for (int b = 0; b < NUM_BOXES_PER_BLOCK; ++b) {
-          final int offset = (numClasses + 5) * b;
+          final int offset = (NUM_CLASSES + 5) * b;
 
           final float confidence = expit(netout[y][x][offset + 4]);
 
           int detectedClass = -1;
           float maxClass = 0;
 
-          final float[] classes = new float[numClasses];
-          for (int c = 0; c < numClasses; ++c) {
+          final float[] classes = new float[NUM_CLASSES];
+          for (int c = 0; c < NUM_CLASSES; ++c) {
             classes[c] = netout[y][x][offset + 5 + c];
           }
           softmax(classes);
 
-          for (int c = 0; c < numClasses; ++c) {
+          for (int c = 0; c < NUM_CLASSES; ++c) {
             if (classes[c] > maxClass) {
               detectedClass = c;
               maxClass = classes[c];
@@ -262,11 +314,11 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
           }
 
           final float confidenceInClass = maxClass * confidence;
-          if (confidenceInClass >  minimumConfidence) {
-            final float xPos = (x + expit(netout[y][x][offset])) / gridWidth;
+          if (confidenceInClass >  THRESHOLD) {
+            final float xPos = (x + expit(netout[y][x][offset + 0])) / gridWidth;
             final float yPos = (y + expit(netout[y][x][offset + 1])) / gridHeight;
 
-            final float w = (float) (Math.exp(netout[y][x][offset + 2]) * anchors[2 * b]) / netWidth;
+            final float w = (float) (Math.exp(netout[y][x][offset + 2]) * anchors[2 * b + 0]) / netWidth;
             final float h = (float) (Math.exp(netout[y][x][offset + 3]) * anchors[2 * b + 1]) / netHeight;
 
             final RectF rect = new RectF(
@@ -286,12 +338,7 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
     return detections;
   }
 
-  private void correctYoloBoxes(List<Recognition> recognitions) {
-    int netWidth = inputSize;
-    int netHeight = inputSize;
-    int imageWidth = inputSize;
-    int imageHeight = inputSize;
-
+  private void correctYoloBoxes(List<Recognition> recognitions, int netWidth, int netHeight, int imageWidth, int imageHeight) {
     int new_w;
     int new_h;
 
@@ -310,19 +357,16 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
       float y_offset = (netHeight - new_h) / 2.f / netHeight;
       float y_scale = (float) new_h / netHeight;
 
-      RectF correctedLocation = new RectF(
-          (recognition.getLocation().left - x_offset) / x_scale * imageWidth,
-          (recognition.getLocation().top - y_offset) / y_scale * imageHeight,
-         (recognition.getLocation().right - x_offset) / x_scale * imageWidth,
-       (recognition.getLocation().bottom - y_offset) / y_scale * imageHeight);
+      RectF correctedLocation = new RectF((int) ((recognition.getLocation().left - x_offset) / x_scale * imageWidth),
+                (int) ((recognition.getLocation().top - y_offset) / y_scale * imageHeight),
+                (int) ((recognition.getLocation().right - x_offset) / x_scale * imageWidth),
+                (int) ((recognition.getLocation().bottom - y_offset) / y_scale * imageHeight));
 
       recognition.setLocation(correctedLocation);
     }
   }
 
-  private List<Recognition> doNms(List<Recognition> recognitions) {
-    float NMS_THRESHOLD = 0.2f;
-
+  private List<Recognition> doNms(List<Recognition> recognitions, float nmsThreashold) {
     if (recognitions.isEmpty()) {
       return new ArrayList<>();
     }
@@ -340,7 +384,7 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
     final List<Recognition> predictions = new ArrayList<>();
     predictions.add(priorityQueue.poll()); // best prediction
 
-    Recognition currentPrediction;
+    Recognition currentPrediction = null;
     while ((currentPrediction = priorityQueue.poll()) != null) {
       boolean overlaps = false;
 
@@ -359,7 +403,7 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
           intersectProportion = intersection / main;
         }
 
-        overlaps = overlaps || (intersectProportion > NMS_THRESHOLD);
+        overlaps = overlaps || (intersectProportion > nmsThreashold);
       }
 
       if (!overlaps) {
@@ -379,12 +423,7 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
   }
 
   @Override
-  public void close() {
-    if (tfLite != null) {
-      tfLite.close();
-      tfLite = null;
-    }
-  }
+  public void close() {}
 
   public void setNumThreads(int num_threads) {
     if (tfLite != null) tfLite.setNumThreads(num_threads);
