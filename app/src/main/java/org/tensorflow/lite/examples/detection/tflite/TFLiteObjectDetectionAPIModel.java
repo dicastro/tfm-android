@@ -143,7 +143,7 @@ public class TFLiteObjectDetectionAPIModel implements Classifier {
   }
 
   @Override
-  public List<Recognition> recognizeImage(final Bitmap bitmap) {
+  public List<Recognition> recognizeImage(final Bitmap bitmap, int[][][] loadedIntValues) {
     // Log this method so that it can be analyzed with systrace.
     Trace.beginSection("recognizeImage");
 

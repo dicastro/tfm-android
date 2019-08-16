@@ -31,8 +31,11 @@ import android.os.SystemClock;
 import android.util.Size;
 import android.util.TypedValue;
 import android.widget.Toast;
+
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.LinkedList;
 import java.util.List;
 import org.tensorflow.lite.examples.detection.customview.OverlayView;
@@ -64,7 +67,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
   private static final int TF_YOLO_V3_TINY_API_INPUT_SIZE = 256;
   private static final boolean TF_YOLO_V3_TINY_API_IS_QUANTIZED = false;
-  private static final String TF_YOLO_V3_TINY_API_MODEL_FILE = "vB2_model_best_weights.tflite";
+  private static final String TF_YOLO_V3_TINY_API_MODEL_FILE = "vC1_model_best_weights.tflite";
   private static final String TF_YOLO_V3_TINY_API_LABELS_FILE = "file:///android_asset/mylabelmap.txt";
   // Minimum detection confidence to track a detection.
   private static final float MINIMUM_CONFIDENCE_TF_YOLO_V3_TINY_API = 0.5f;
@@ -72,7 +75,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
   private static final boolean MAINTAIN_ASPECT = false;
   private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
   // TODO: change to false
-  private static final boolean SAVE_PREVIEW_BITMAP = true;
+  private static final boolean SAVE_PREVIEW_BITMAP = false;
   private static final float TEXT_SIZE_DIP = 10;
 
   OverlayView trackingOverlay;
@@ -159,6 +162,63 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
     tracker.setFrameConfiguration(previewWidth, previewHeight, sensorOrientation);
   }
 
+  public int[][][] loadIntValues() {
+    int[][][] loadedIntValues = new int[256][256][3];
+
+    try (BufferedReader br = new BufferedReader(new InputStreamReader(getAssets().open("g0010119_channel_0.txt")))) {
+      int lineNumber = 0;
+      String line;
+
+      while ((line = br.readLine()) != null) {
+        String[] columns = line.split(" ");
+
+        for (int c = 0; c < columns.length; c++) {
+          loadedIntValues[lineNumber][c][0] = new Integer(columns[c]);
+        }
+
+        lineNumber++;
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+
+    try (BufferedReader br = new BufferedReader(new InputStreamReader(getAssets().open("g0010119_channel_1.txt")))) {
+      int lineNumber = 0;
+      String line;
+
+      while ((line = br.readLine()) != null) {
+        String[] columns = line.split(" ");
+
+        for (int c = 0; c < columns.length; c++) {
+          loadedIntValues[lineNumber][c][1] = new Integer(columns[c]);
+        }
+
+        lineNumber++;
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+
+    try (BufferedReader br = new BufferedReader(new InputStreamReader(getAssets().open("g0010119_channel_2.txt")))) {
+      int lineNumber = 0;
+      String line;
+
+      while ((line = br.readLine()) != null) {
+        String[] columns = line.split(" ");
+
+        for (int c = 0; c < columns.length; c++) {
+          loadedIntValues[lineNumber][c][2] = new Integer(columns[c]);
+        }
+
+        lineNumber++;
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+
+    return loadedIntValues;
+  }
+
   @Override
   protected void processImage() {
     ++timestamp;
@@ -178,10 +238,10 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
     readyForNextImage();
 
-    try (InputStream stream = getAssets().open("g0010119.jpg")) {
-      rgbFrameBitmap = BitmapFactory.decodeStream(stream);
-    } catch (Exception ignored) {
-    }
+//    try (InputStream stream = getAssets().open("g0010119.jpg")) {
+//      rgbFrameBitmap = BitmapFactory.decodeStream(stream);
+//    } catch (Exception ignored) {
+//    }
 
     final Canvas canvas = new Canvas(croppedBitmap);
     canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
@@ -191,12 +251,20 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
       ImageUtils.saveBitmap(croppedBitmap);
     }
 
+    try (InputStream stream = getAssets().open("g0010119-preprocessed-new.jpg")) {
+      BitmapFactory.Options croppedBitmapOptions = new BitmapFactory.Options();
+      //croppedBitmapOptions.inDensity = 96;
+
+      croppedBitmap = BitmapFactory.decodeStream(stream, null, croppedBitmapOptions);
+    } catch (Exception ignored) {
+    }
+
     runInBackground(new Runnable() {
       @Override
       public void run() {
         LOGGER.i("Running detection on image " + currTimestamp);
         final long startTime = SystemClock.uptimeMillis();
-        final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap);
+        final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap, loadIntValues());
         lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
 
         cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);

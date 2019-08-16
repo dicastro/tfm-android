@@ -53,7 +53,7 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
   // Float model
   private static final float IMAGE_MAX_VALUE = 255.0f;
   // Number of threads in the java app
-  private static final int NUM_THREADS = 4;
+  private static final int NUM_THREADS = 1;
   private boolean isModelQuantized;
   // Config values.
   private int inputSize;
@@ -110,7 +110,7 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
     d.inputSize = inputSize;
 
     try {
-      Interpreter.Options interpreterOptions = new Interpreter.Options().setNumThreads(NUM_THREADS);
+      Interpreter.Options interpreterOptions = new Interpreter.Options().setNumThreads(NUM_THREADS).setAllowFp16PrecisionForFp32(Boolean.TRUE);
 
       d.tfLite = new Interpreter(loadModelFile(assetManager, modelFilename), interpreterOptions);
     } catch (Exception e) {
@@ -138,7 +138,7 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
   }
 
   @Override
-  public List<Recognition> recognizeImage(final Bitmap bitmap) {
+  public List<Recognition> recognizeImage(final Bitmap bitmap, final int[][][] loadedIntValues) {
     // Log this method so that it can be analyzed with systrace.
     Trace.beginSection("recognizeImage");
 
@@ -148,21 +148,63 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
     bitmap.getPixels(intValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
 
     imgData.rewind();
+    // Original
+//    for (int i = 0; i < inputSize; ++i) {
+//      for (int j = 0; j < inputSize; ++j) {
+//        int pixelValue = intValues[i * inputSize + j];
+//        if (isModelQuantized) {
+//          // Quantized model
+//          imgData.put((byte) ((pixelValue >> 16) & 0xFF));
+//          imgData.put((byte) ((pixelValue >> 8) & 0xFF));
+//          imgData.put((byte) (pixelValue & 0xFF));
+//        } else { // Float model
+//          imgData.putFloat(((pixelValue >> 16) & 0xFF) / IMAGE_MAX_VALUE);
+//          imgData.putFloat(((pixelValue >> 8) & 0xFF) / IMAGE_MAX_VALUE);
+//          imgData.putFloat((pixelValue & 0xFF) / IMAGE_MAX_VALUE);
+//        }
+//      }
+//    }
+
+    // Test 1 - OK
     for (int i = 0; i < inputSize; ++i) {
       for (int j = 0; j < inputSize; ++j) {
-        int pixelValue = intValues[i * inputSize + j];
         if (isModelQuantized) {
           // Quantized model
-          imgData.put((byte) ((pixelValue >> 16) & 0xFF));
-          imgData.put((byte) ((pixelValue >> 8) & 0xFF));
-          imgData.put((byte) (pixelValue & 0xFF));
+          imgData.put((byte) loadedIntValues[i][j][2]);
+          imgData.put((byte) loadedIntValues[i][j][1]);
+          imgData.put((byte) loadedIntValues[i][j][0]);
         } else { // Float model
-          imgData.putFloat(((pixelValue >> 16) & 0xFF) / IMAGE_MAX_VALUE);
-          imgData.putFloat(((pixelValue >> 8) & 0xFF) / IMAGE_MAX_VALUE);
-          imgData.putFloat((pixelValue & 0xFF) / IMAGE_MAX_VALUE);
+          imgData.putFloat(loadedIntValues[i][j][2] / IMAGE_MAX_VALUE);
+          imgData.putFloat(loadedIntValues[i][j][1] / IMAGE_MAX_VALUE);
+          imgData.putFloat(loadedIntValues[i][j][0] / IMAGE_MAX_VALUE);
         }
       }
     }
+    // Test 2
+//    float[][][][] floatValues = new float[1][inputSize][inputSize][3];
+//
+//    for (int y = 0; y < inputSize; y++) {
+//      for (int x = 0; x < inputSize; x++) {
+//        floatValues[0][y][x][0] = loadedIntValues[y][x][2] / 255.0f;
+//        floatValues[0][y][x][1] = loadedIntValues[y][x][1] / 255.0f;
+//        floatValues[0][y][x][2] = loadedIntValues[y][x][0] / 255.0f;
+//      }
+//    }
+    // Test 3
+//    float[][][][] floatValues = new float[1][inputSize][inputSize][3];
+//
+//    for (int y = 0; y < inputSize; y++) {
+//      for (int x = 0; x < inputSize; x++) {
+//        floatValues[0][y][x][0] = 0.11253756f;
+//        floatValues[0][y][x][1] = 0.11253756f;
+//        floatValues[0][y][x][2] = 0.11253756f;
+//      }
+//    }
+
+//    floatValues[0][0][0][0] = 1.0f;
+//    floatValues[0][0][0][1] = 1.0f;
+//    floatValues[0][0][0][2] = 1.0f;
+
     Trace.endSection(); // preprocessBitmap
 
     // Copy the input data into TensorFlow.
@@ -170,10 +212,21 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
     output1 = new float[1][8][8][18];
     output2 = new float[1][16][16][18];
 
+    ByteBuffer outputBB1 = ByteBuffer.allocateDirect(1 * 8 * 8 * 18 * 4);
+    outputBB1.order(ByteOrder.nativeOrder());
+    outputBB1.rewind();
+
+    ByteBuffer outputBB2 = ByteBuffer.allocateDirect(1 * 16 * 16 * 18 * 4);
+    outputBB1.order(ByteOrder.nativeOrder());
+    outputBB2.rewind();
+
     Object[] inputArray = {imgData};
+//    Object[] inputArray = {floatValues};
     Map<Integer, Object> outputMap = new HashMap<>();
     outputMap.put(0, output1);
     outputMap.put(1, output2);
+//    outputMap.put(0, outputBB1);
+//    outputMap.put(1, outputBB2);
     Trace.endSection();
 
     // Run the inference call.
@@ -186,9 +239,10 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
     final List<Recognition> recognitions = new ArrayList<>(NUM_DETECTIONS);
 
     recognitions.addAll(decodeNetout(output1[0], 8, 8, anchors1, 256, 256));
-    recognitions.addAll(decodeNetout(output2[0], 8, 8, anchors2, 256, 256));
+    recognitions.addAll(decodeNetout(output2[0], 16, 16, anchors2, 256, 256));
 
-    correctYoloBoxes(recognitions, 256, 256, bitmap.getWidth(), bitmap.getHeight());
+//    correctYoloBoxes(recognitions, 256, 256, bitmap.getWidth(), bitmap.getHeight());
+    correctYoloBoxes(recognitions, 256, 256, 640, 480);
 
     final List<Recognition> filteredRecognitions = doNms(recognitions, .2f);
 
@@ -294,10 +348,12 @@ public class TFLiteYoloV3TinyAPIModel implements Classifier {
       float y_offset = (netHeight - new_h) / 2.f / netHeight;
       float y_scale = (float) new_h / netHeight;
 
-      recognition.getLocation().left = (int) ((recognition.getLocation().left - x_offset) / x_scale * imageWidth);
-      recognition.getLocation().right = (int) ((recognition.getLocation().right - x_offset) / x_scale * imageWidth);
-      recognition.getLocation().top = (int) ((recognition.getLocation().top - y_offset) / y_scale * imageHeight);
-      recognition.getLocation().bottom = (int) ((recognition.getLocation().bottom - y_offset) / y_scale * imageHeight);
+      RectF correctedLocation = new RectF((int) ((recognition.getLocation().left - x_offset) / x_scale * imageWidth),
+                (int) ((recognition.getLocation().top - y_offset) / y_scale * imageHeight),
+                (int) ((recognition.getLocation().right - x_offset) / x_scale * imageWidth),
+                (int) ((recognition.getLocation().bottom - y_offset) / y_scale * imageHeight));
+
+      recognition.setLocation(correctedLocation);
     }
   }
 
