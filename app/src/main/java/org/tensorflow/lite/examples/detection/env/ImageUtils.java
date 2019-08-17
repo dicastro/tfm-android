@@ -216,23 +216,22 @@ public class ImageUtils {
     return matrix;
   }
 
+  // TODO: improve this to take into account image rotation (sensor orientation)
   public static Matrix getEnvelopeTransformationMatrix(
       final int srcWidth,
       final int srcHeight,
       final int dstWidth,
-      final int dstHeight,
-      final int applyRotation
+      final int dstHeight
     ) {
-
-    float scale = (float) dstWidth / srcWidth;
-
-    float xTranslation = 0.0f;
-    float yTranslation = (dstHeight - srcHeight * scale) / 2.0f;
-
     final Matrix matrix = new Matrix();
 
+    final float scaleFactorX = dstWidth / (float) srcWidth;
+
+    float xTranslation = 0.0f;
+    float yTranslation = (dstHeight - srcHeight * scaleFactorX) / 2.0f;
+
     matrix.postTranslate(xTranslation, yTranslation);
-    matrix.preScale(scale, scale);
+    matrix.preScale(scaleFactorX, scaleFactorX);
 
     return matrix;
   }

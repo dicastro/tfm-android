@@ -52,6 +52,8 @@ import android.widget.Toast;
 import java.nio.ByteBuffer;
 import org.tensorflow.lite.examples.detection.env.ImageUtils;
 import org.tensorflow.lite.examples.detection.env.Logger;
+import org.tensorflow.lite.examples.detection.tflite.Classifier.Device;
+import org.tensorflow.lite.examples.detection.tflite.Classifier.Model;
 
 public abstract class CameraActivity extends AppCompatActivity
     implements OnImageAvailableListener,
@@ -85,6 +87,13 @@ public abstract class CameraActivity extends AppCompatActivity
   private ImageView plusImageView, minusImageView;
   private SwitchCompat apiSwitchCompat;
   private TextView threadsTextView;
+
+  private Model model = Model.V3_TINY_PRODUCTION;
+//  private Model model = Model.V3_TINY_DEBUG;
+  private Device device = Device.CPU;
+  private int numThreads = 4;
+  private float minimumConfidence = 0.5f;
+  private boolean useNNAPI = false;
 
   @Override
   protected void onCreate(final Bundle savedInstanceState) {
@@ -492,8 +501,19 @@ public abstract class CameraActivity extends AppCompatActivity
   @Override
   public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
     setUseNNAPI(isChecked);
-    if (isChecked) apiSwitchCompat.setText("NNAPI");
-    else apiSwitchCompat.setText("TFLITE");
+    if (isChecked) {
+      apiSwitchCompat.setText("NNAPI");
+    } else {
+      apiSwitchCompat.setText("TFLITE");
+    }
+  }
+
+  private void setUseNNAPI(boolean useNNAPI) {
+    if (this.useNNAPI != useNNAPI) {
+      LOGGER.d("Updating useNNAPI: " + useNNAPI);
+      this.useNNAPI = useNNAPI;
+      onInferenceConfigurationChanged();
+    }
   }
 
   @Override
@@ -517,6 +537,34 @@ public abstract class CameraActivity extends AppCompatActivity
     }
   }
 
+  private void setNumThreads(int numThreads) {
+    if (this.numThreads != numThreads) {
+      LOGGER.d("Updating numThreads: " + numThreads);
+      this.numThreads = numThreads;
+      onInferenceConfigurationChanged();
+    }
+  }
+
+  public Model getModel() {
+    return model;
+  }
+
+  public Device getDevice() {
+    return device;
+  }
+
+  public int getNumThreads() {
+    return numThreads;
+  }
+
+  public float getMinimumConfidence() {
+    return minimumConfidence;
+  }
+
+  public boolean getUseNNNAPI() {
+    return useNNAPI;
+  }
+
   protected void showFrameInfo(String frameInfo) {
     frameValueTextView.setText(frameInfo);
   }
@@ -537,7 +585,5 @@ public abstract class CameraActivity extends AppCompatActivity
 
   protected abstract Size getDesiredPreviewFrameSize();
 
-  protected abstract void setNumThreads(int numThreads);
-
-  protected abstract void setUseNNAPI(boolean isChecked);
+  protected abstract void onInferenceConfigurationChanged();
 }

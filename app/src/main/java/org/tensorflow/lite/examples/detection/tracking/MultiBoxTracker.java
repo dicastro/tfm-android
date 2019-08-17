@@ -80,14 +80,11 @@ public class MultiBoxTracker {
     boxPaint.setStrokeJoin(Join.ROUND);
     boxPaint.setStrokeMiter(100);
 
-    textSizePx =
-        TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, context.getResources().getDisplayMetrics());
+    textSizePx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, context.getResources().getDisplayMetrics());
     borderedText = new BorderedText(textSizePx);
   }
 
-  public synchronized void setFrameConfiguration(
-      final int width, final int height, final int sensorOrientation) {
+  public synchronized void setFrameConfiguration(final int width, final int height, final int sensorOrientation) {
     frameWidth = width;
     frameHeight = height;
     this.sensorOrientation = sensorOrientation;
@@ -122,18 +119,16 @@ public class MultiBoxTracker {
 
   public synchronized void draw(final Canvas canvas) {
     final boolean rotated = sensorOrientation % 180 == 90;
-    final float multiplier =
-        Math.min(
-            canvas.getHeight() / (float) (rotated ? frameWidth : frameHeight),
-            canvas.getWidth() / (float) (rotated ? frameHeight : frameWidth));
-    frameToCanvasMatrix =
-        ImageUtils.getTransformationMatrix(
+    final float multiplier = Math.min(canvas.getHeight() / (float) (rotated ? frameWidth : frameHeight), canvas.getWidth() / (float) (rotated ? frameHeight : frameWidth));
+
+    frameToCanvasMatrix = ImageUtils.getTransformationMatrix(
             frameWidth,
             frameHeight,
             (int) (multiplier * (rotated ? frameHeight : frameWidth)),
             (int) (multiplier * (rotated ? frameWidth : frameHeight)),
             sensorOrientation,
             false);
+
     for (final TrackedRecognition recognition : trackedObjects) {
       final RectF trackedPos = new RectF(recognition.location);
 
@@ -143,14 +138,11 @@ public class MultiBoxTracker {
       float cornerSize = Math.min(trackedPos.width(), trackedPos.height()) / 8.0f;
       canvas.drawRoundRect(trackedPos, cornerSize, cornerSize, boxPaint);
 
-      final String labelString =
-          !TextUtils.isEmpty(recognition.title)
+      final String labelString = !TextUtils.isEmpty(recognition.title)
               ? String.format("%s %.2f", recognition.title, (100 * recognition.detectionConfidence))
               : String.format("%.2f", (100 * recognition.detectionConfidence));
-      //            borderedText.drawText(canvas, trackedPos.left + cornerSize, trackedPos.top,
-      // labelString);
-      borderedText.drawText(
-          canvas, trackedPos.left + cornerSize, trackedPos.top, labelString + "%", boxPaint);
+
+      borderedText.drawText(canvas, trackedPos.left + cornerSize, trackedPos.top, labelString + "%", boxPaint);
     }
   }
 
@@ -164,22 +156,22 @@ public class MultiBoxTracker {
       if (result.getLocation() == null) {
         continue;
       }
+
       final RectF detectionFrameRect = new RectF(result.getLocation());
 
       final RectF detectionScreenRect = new RectF();
       rgbFrameToScreen.mapRect(detectionScreenRect, detectionFrameRect);
 
-      logger.v(
-          "Result! Frame: " + result.getLocation() + " mapped to screen:" + detectionScreenRect);
+      logger.v("Result! Frame: " + result.getLocation() + " mapped to screen:" + detectionScreenRect);
 
       screenRects.add(new Pair<Float, RectF>(result.getConfidence(), detectionScreenRect));
 
-      if (detectionFrameRect.width() < MIN_SIZE || detectionFrameRect.height() < MIN_SIZE) {
-        logger.w("Degenerate rectangle! " + detectionFrameRect);
-        continue;
-      }
+//      if (detectionFrameRect.width() < MIN_SIZE || detectionFrameRect.height() < MIN_SIZE) {
+//        logger.w("Degenerate rectangle! " + detectionFrameRect);
+//        continue;
+//      }
 
-      rectsToTrack.add(new Pair<Float, Recognition>(result.getConfidence(), result));
+      rectsToTrack.add(new Pair<>(result.getConfidence(), result));
     }
 
     if (rectsToTrack.isEmpty()) {
@@ -188,6 +180,7 @@ public class MultiBoxTracker {
     }
 
     trackedObjects.clear();
+
     for (final Pair<Float, Recognition> potential : rectsToTrack) {
       final TrackedRecognition trackedRecognition = new TrackedRecognition();
       trackedRecognition.detectionConfidence = potential.first;

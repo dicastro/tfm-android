@@ -25,29 +25,24 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Paint.Style;
 import android.graphics.RectF;
-import android.graphics.Typeface;
 import android.media.ImageReader.OnImageAvailableListener;
 import android.os.SystemClock;
 import android.util.Size;
-import android.util.TypedValue;
 import android.widget.Toast;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.LinkedList;
-import java.util.List;
 import org.tensorflow.lite.examples.detection.customview.OverlayView;
 import org.tensorflow.lite.examples.detection.customview.OverlayView.DrawCallback;
-import org.tensorflow.lite.examples.detection.env.BorderedText;
 import org.tensorflow.lite.examples.detection.env.ImageUtils;
 import org.tensorflow.lite.examples.detection.env.Logger;
 import org.tensorflow.lite.examples.detection.tflite.Classifier;
-import org.tensorflow.lite.examples.detection.tflite.TFLiteObjectDetectionAPIModel;
-import org.tensorflow.lite.examples.detection.tflite.TFLiteYoloV3TinyAPIModel;
-import org.tensorflow.lite.examples.detection.tflite.TFLiteYoloV3TinyDebugAPIModel;
+import org.tensorflow.lite.examples.detection.tflite.Classifier.Device;
+import org.tensorflow.lite.examples.detection.tflite.Classifier.Model;
 import org.tensorflow.lite.examples.detection.tracking.MultiBoxTracker;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * An activity that uses a TensorFlowMultiBoxDetector and ObjectTracker to detect and then track
@@ -56,34 +51,14 @@ import org.tensorflow.lite.examples.detection.tracking.MultiBoxTracker;
 public class DetectorActivity extends CameraActivity implements OnImageAvailableListener {
   private static final Logger LOGGER = new Logger();
 
-  private static final DetectorMode MODE = DetectorMode.TF_OD_API;
-
-  // Configuration values for the prepackaged SSD model.
-  private static final int TF_OD_API_INPUT_SIZE = 300;
-  private static final boolean TF_OD_API_IS_QUANTIZED = true;
-  private static final String TF_OD_API_MODEL_FILE = "detect.tflite";
-  private static final String TF_OD_API_LABELS_FILE = "file:///android_asset/labelmap.txt";
-  // Minimum detection confidence to track a detection.
-  private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f;
-
-  private static final int TF_YOLO_V3_TINY_API_INPUT_SIZE = 256;
-  private static final boolean TF_YOLO_V3_TINY_API_IS_QUANTIZED = false;
-  private static final String TF_YOLO_V3_TINY_API_MODEL_FILE = "vC1_model_best_weights.tflite";
-  private static final String TF_YOLO_V3_TINY_API_LABELS_FILE = "file:///android_asset/mylabelmap.txt";
-  // Minimum detection confidence to track a detection.
-  private static final float MINIMUM_CONFIDENCE_TF_YOLO_V3_TINY_API = 0.5f;
-
   private static final boolean MAINTAIN_ASPECT = false;
   private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
-  // TODO: change to false
   private static final boolean SAVE_PREVIEW_BITMAP = false;
-  private static final float TEXT_SIZE_DIP = 10;
 
   OverlayView trackingOverlay;
   private Integer sensorOrientation;
 
   private Classifier detector;
-  private float minimumConfidence;
 
   private long lastProcessingTimeMs;
   private Bitmap rgbFrameBitmap = null;
@@ -99,66 +74,31 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
   private MultiBoxTracker tracker;
 
-  private BorderedText borderedText;
-
   @Override
   public void onPreviewSizeChosen(final Size size, final int rotation) {
-    final float textSizePx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, getResources().getDisplayMetrics());
-    borderedText = new BorderedText(textSizePx);
-    borderedText.setTypeface(Typeface.MONOSPACE);
-
     tracker = new MultiBoxTracker(this);
 
-//    int cropSize = TF_OD_API_INPUT_SIZE;
-//
-//    try {
-//      detector = TFLiteObjectDetectionAPIModel.create(getAssets(), TF_OD_API_MODEL_FILE, TF_OD_API_LABELS_FILE, TF_OD_API_INPUT_SIZE, TF_OD_API_IS_QUANTIZED);
-//      cropSize = TF_YOLO_V3_TINY_API_INPUT_SIZE;
-//    } catch (final IOException e) {
-//      e.printStackTrace();
-//      LOGGER.e(e, "Exception initializing classifier!");
-//      Toast toast = Toast.makeText(getApplicationContext(), "Classifier could not be initialized", Toast.LENGTH_SHORT);
-//      toast.show();
-//      finish();
-//    }
-    int cropSize = TF_YOLO_V3_TINY_API_INPUT_SIZE;
+    recreateClassifier(getModel(), getDevice(), getNumThreads(), getMinimumConfidence());
 
-    try {
-      detector = TFLiteYoloV3TinyAPIModel.create(getAssets(), TF_YOLO_V3_TINY_API_MODEL_FILE, TF_YOLO_V3_TINY_API_LABELS_FILE, TF_YOLO_V3_TINY_API_INPUT_SIZE, TF_YOLO_V3_TINY_API_IS_QUANTIZED);
-      cropSize = TF_YOLO_V3_TINY_API_INPUT_SIZE;
-    } catch (final IOException e) {
-      e.printStackTrace();
-      LOGGER.e(e, "Exception initializing classifier!");
-      Toast toast = Toast.makeText(getApplicationContext(), "Classifier could not be initialized", Toast.LENGTH_SHORT);
-      toast.show();
-      finish();
-    }
-
-    switch (MODE) {
-      case TF_OD_API:
-        minimumConfidence = MINIMUM_CONFIDENCE_TF_OD_API;
-        break;
-      case TF_YOLO_V3_TINY_API:
-        minimumConfidence = MINIMUM_CONFIDENCE_TF_YOLO_V3_TINY_API;
-        break;
-      default:
-        minimumConfidence = 0.5f;
-        break;
+    if (detector == null) {
+      LOGGER.e("No classifier on preview!");
+      return;
     }
 
     previewWidth = size.getWidth();
     previewHeight = size.getHeight();
 
-    sensorOrientation = rotation - getScreenOrientation() - 90; // rotation is always 90, I do not understand why (this parameter is fixed and comes from CameraActivity class)
+    sensorOrientation = rotation - getScreenOrientation();
+//    sensorOrientation = rotation - getScreenOrientation() - 90; // rotation is always 90, I do not understand why (this parameter is fixed and comes from CameraActivity class)
     LOGGER.i("Camera orientation relative to screen canvas: %d", sensorOrientation);
 
     LOGGER.i("Initializing at size %dx%d", previewWidth, previewHeight);
     rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Config.ARGB_8888);
-    croppedBitmap = Bitmap.createBitmap(cropSize, cropSize, Config.ARGB_8888);
+    croppedBitmap = Bitmap.createBitmap(detector.getImageSizeX(), detector.getImageSizeY(), Config.ARGB_8888);
 
-    frameToCropTransform = ImageUtils.getEnvelopeTransformationMatrix(previewWidth, previewHeight, cropSize, cropSize, sensorOrientation);
+    frameToCropTransform = ImageUtils.getEnvelopeTransformationMatrix(previewWidth, previewHeight, detector.getImageSizeX(), detector.getImageSizeY());
 
-//    frameToCropTransform = ImageUtils.getTransformationMatrix(previewWidth, previewHeight, cropSize, cropSize, sensorOrientation, MAINTAIN_ASPECT);
+//    frameToCropTransform = ImageUtils.getTransformationMatrix(previewWidth, previewHeight, detector.getImageSizeX(), detector.getImageSizeY(), sensorOrientation, MAINTAIN_ASPECT);
 
     cropToFrameTransform = new Matrix();
     frameToCropTransform.invert(cropToFrameTransform);
@@ -176,63 +116,6 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
     });
 
     tracker.setFrameConfiguration(previewWidth, previewHeight, sensorOrientation);
-  }
-
-  public int[][][] loadIntValues() {
-    int[][][] loadedIntValues = new int[256][256][3];
-
-    try (BufferedReader br = new BufferedReader(new InputStreamReader(getAssets().open("g0010119_channel_0.txt")))) {
-      int lineNumber = 0;
-      String line;
-
-      while ((line = br.readLine()) != null) {
-        String[] columns = line.split(" ");
-
-        for (int c = 0; c < columns.length; c++) {
-          loadedIntValues[lineNumber][c][0] = Integer.valueOf(columns[c]);
-        }
-
-        lineNumber++;
-      }
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-
-    try (BufferedReader br = new BufferedReader(new InputStreamReader(getAssets().open("g0010119_channel_1.txt")))) {
-      int lineNumber = 0;
-      String line;
-
-      while ((line = br.readLine()) != null) {
-        String[] columns = line.split(" ");
-
-        for (int c = 0; c < columns.length; c++) {
-          loadedIntValues[lineNumber][c][1] = Integer.valueOf(columns[c]);
-        }
-
-        lineNumber++;
-      }
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-
-    try (BufferedReader br = new BufferedReader(new InputStreamReader(getAssets().open("g0010119_channel_2.txt")))) {
-      int lineNumber = 0;
-      String line;
-
-      while ((line = br.readLine()) != null) {
-        String[] columns = line.split(" ");
-
-        for (int c = 0; c < columns.length; c++) {
-          loadedIntValues[lineNumber][c][2] = Integer.valueOf(columns[c]);
-        }
-
-        lineNumber++;
-      }
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-
-    return loadedIntValues;
   }
 
   @Override
@@ -259,14 +142,9 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 //    } catch (Exception ignored) {
 //    }
 
-    //--------------------------
-    Canvas canvas = new Canvas(croppedBitmap);
+    final Canvas canvas = new Canvas(croppedBitmap);
     canvas.drawColor(0xFF7F7F7F); // Gray
     canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
-    //--------------------------
-
-//    final Canvas canvas = new Canvas(croppedBitmap);
-//    canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
 
     // For examining the actual TF input.
     if (SAVE_PREVIEW_BITMAP) {
@@ -283,7 +161,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
       public void run() {
         LOGGER.i("Running detection on image " + currTimestamp);
         final long startTime = SystemClock.uptimeMillis();
-        final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap, minimumConfidence);
+        final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap);
         lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
 
         cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
@@ -324,6 +202,27 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
     });
   }
 
+  private void recreateClassifier(Model model, Device device, int numThreads, float minimumConfidence) {
+    if (detector != null) {
+      LOGGER.d("Closing classifier.");
+      detector.close();
+      detector = null;
+    }
+
+    if (device == Device.GPU) {
+      LOGGER.d("Not creating classifier: GPU doesn't support quantized models.");
+      runOnUiThread(() -> Toast.makeText(this, "GPU does not fully supported.", Toast.LENGTH_LONG).show());
+      return;
+    }
+
+    try {
+      LOGGER.d("Creating classifier (model=%s, device=%s, numThreads=%d)", model, device, numThreads);
+      detector = Classifier.create(this, model, device, numThreads, minimumConfidence);
+    } catch (IOException e) {
+      LOGGER.e(e, "Failed to create classifier.");
+    }
+  }
+
   @Override
   protected int getLayoutId() {
     return R.layout.camera_connection_fragment_tracking;
@@ -334,19 +233,18 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
     return DESIRED_PREVIEW_SIZE;
   }
 
-  // Which detection model to use: by default uses Tensorflow Object Detection API frozen
-  // checkpoints.
-  private enum DetectorMode {
-    TF_OD_API, TF_YOLO_V3_TINY_API
-  }
-
   @Override
-  protected void setUseNNAPI(final boolean isChecked) {
-    runInBackground(() -> detector.setUseNNAPI(isChecked));
-  }
+  protected void onInferenceConfigurationChanged() {
+    if (croppedBitmap == null) {
+      // Defer creation until we're getting camera frames.
+      return;
+    }
 
-  @Override
-  protected void setNumThreads(final int numThreads) {
-    runInBackground(() -> detector.setNumThreads(numThreads));
+    final Device device = getDevice();
+    final Model model = getModel();
+    final int numThreads = getNumThreads();
+    final float minimumConfidence = getMinimumConfidence();
+
+    runInBackground(() -> recreateClassifier(model, device, numThreads, minimumConfidence));
   }
 }
