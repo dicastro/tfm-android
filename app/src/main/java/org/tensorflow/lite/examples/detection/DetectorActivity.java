@@ -37,6 +37,7 @@ import org.tensorflow.lite.examples.detection.env.Logger;
 import org.tensorflow.lite.examples.detection.tflite.Classifier;
 import org.tensorflow.lite.examples.detection.tflite.Classifier.Device;
 import org.tensorflow.lite.examples.detection.tflite.Classifier.Model;
+import org.tensorflow.lite.examples.detection.tflite.Classifier.Recognition;
 import org.tensorflow.lite.examples.detection.tracking.MultiBoxTracker;
 
 import java.io.IOException;
@@ -161,7 +162,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
       public void run() {
         LOGGER.i("Running detection on image " + currTimestamp);
         final long startTime = SystemClock.uptimeMillis();
-        final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap);
+        final List<Recognition> results = detector.recognizeImage(croppedBitmap);
         lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
 
         cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
@@ -172,9 +173,9 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
         paint.setStyle(Style.STROKE);
         paint.setStrokeWidth(1.0f);
 
-        final List<Classifier.Recognition> mappedRecognitions = new LinkedList<>();
+        final List<Recognition> mappedRecognitions = new LinkedList<>();
 
-        for (final Classifier.Recognition result : results) {
+        for (final Recognition result : results) {
           final RectF location = result.getLocation();
 
           canvas.drawRect(result.getLocation(), paint);

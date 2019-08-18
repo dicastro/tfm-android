@@ -341,7 +341,7 @@ public abstract class Classifier {
   }
 
   /** An immutable result returned by a Classifier describing what was recognized. */
-  public class Recognition {
+  public static class Recognition {
     /**
      * A unique identifier for what has been recognized. Specific to the class, not the instance of
      * the object.

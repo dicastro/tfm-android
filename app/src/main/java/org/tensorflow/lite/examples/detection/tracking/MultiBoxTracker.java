@@ -174,12 +174,12 @@ public class MultiBoxTracker {
       rectsToTrack.add(new Pair<>(result.getConfidence(), result));
     }
 
+    trackedObjects.clear();
+
     if (rectsToTrack.isEmpty()) {
       logger.v("Nothing to track, aborting.");
       return;
     }
-
-    trackedObjects.clear();
 
     for (final Pair<Float, Recognition> potential : rectsToTrack) {
       final TrackedRecognition trackedRecognition = new TrackedRecognition();

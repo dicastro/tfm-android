@@ -91,7 +91,7 @@ public abstract class CameraActivity extends AppCompatActivity
   private Model model = Model.V3_TINY_PRODUCTION;
 //  private Model model = Model.V3_TINY_DEBUG;
   private Device device = Device.CPU;
-  private int numThreads = 4;
+  private int numThreads = -1;
   private float minimumConfidence = 0.5f;
   private boolean useNNAPI = false;
 
