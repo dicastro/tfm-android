@@ -43,12 +43,12 @@ public abstract class Classifier {
 
   /** The model type used for classification. */
   public enum Model {
-    V3_TINY_256_PROD, V3_TINY_416_PROD, V3_TINY_416_QUANTA_PROD, V3_TINY_256_DEBUG
+    V3_TINY_256, V3_TINY_416, V3_TINY_416_QUANT, V3_TINY_256_DEBUG
   }
 
   /** The runtime device type used for executing classification. */
   public enum Device {
-    CPU, NNAPI, GPU
+    CPU, GPU
   }
 
   /** Dimensions of inputs. */
@@ -101,10 +101,10 @@ public abstract class Classifier {
       case V3_TINY_256_DEBUG:
         classifier = new TFLiteYoloV3Tiny256DebugAPIModel(activity, device, numThreads, minimumConfidence);
         break;
-      case V3_TINY_416_PROD:
+      case V3_TINY_416:
         classifier = new TFLiteYoloV3Tiny416APIModel(activity, device, numThreads, minimumConfidence);
         break;
-      case V3_TINY_416_QUANTA_PROD:
+      case V3_TINY_416_QUANT:
         classifier = new TFLiteYoloV3Tiny416QuantAAPIModel(activity, device, numThreads, minimumConfidence);
         break;
       default:
@@ -153,9 +153,6 @@ public abstract class Classifier {
       final Interpreter.Options tfliteOptions = new Interpreter.Options();
 
       switch (device) {
-        case NNAPI:
-          tfliteOptions.setUseNNAPI(true);
-          break;
         case GPU:
           gpuDelegate = new GpuDelegate();
           tfliteOptions.addDelegate(gpuDelegate);

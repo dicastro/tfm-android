@@ -89,7 +89,7 @@ public class TFLiteYoloV3Tiny416APIModel extends YoloClassifier {
 
   @Override
   protected String getLabelPath() {
-    return "mylabelmap.txt";
+    return "yololabels.txt";
   }
 
   @Override

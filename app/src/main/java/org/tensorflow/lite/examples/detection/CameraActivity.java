@@ -37,16 +37,16 @@ import android.os.Trace;
 import android.support.annotation.NonNull;
 import android.support.design.widget.BottomSheetBehavior;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.SwitchCompat;
 import android.support.v7.widget.Toolbar;
 import android.util.Size;
 import android.view.Surface;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.view.WindowManager;
-import android.widget.CompoundButton;
+import android.widget.AdapterView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.nio.ByteBuffer;
@@ -56,10 +56,7 @@ import org.tensorflow.lite.examples.detection.tflite.Classifier.Device;
 import org.tensorflow.lite.examples.detection.tflite.Classifier.Model;
 
 public abstract class CameraActivity extends AppCompatActivity
-    implements OnImageAvailableListener,
-        Camera.PreviewCallback,
-        CompoundButton.OnCheckedChangeListener,
-        View.OnClickListener {
+    implements OnImageAvailableListener, Camera.PreviewCallback, View.OnClickListener, AdapterView.OnItemSelectedListener {
   private static final Logger LOGGER = new Logger();
 
   private static final int PERMISSIONS_REQUEST = 1;
@@ -85,15 +82,15 @@ public abstract class CameraActivity extends AppCompatActivity
   protected TextView frameValueTextView, cropValueTextView, inferenceTimeTextView;
   protected ImageView bottomSheetArrowImageView;
   private ImageView plusImageView, minusImageView;
-  private SwitchCompat apiSwitchCompat;
+  private Spinner modelSpinner;
+  private Spinner deviceSpinner;
   private TextView threadsTextView;
 
-  private Model model = Model.V3_TINY_256_PROD;
+  private Model model = Model.V3_TINY_256;
 //  private Model model = Model.V3_TINY_256_DEBUG;
   private Device device = Device.GPU;
   private int numThreads = -1;
   private float minimumConfidence = 0.5f;
-  private boolean useNNAPI = false;
 
   @Override
   protected void onCreate(final Bundle savedInstanceState) {
@@ -115,7 +112,8 @@ public abstract class CameraActivity extends AppCompatActivity
     threadsTextView = findViewById(R.id.threads);
     plusImageView = findViewById(R.id.plus);
     minusImageView = findViewById(R.id.minus);
-    apiSwitchCompat = findViewById(R.id.api_info_switch);
+    modelSpinner = findViewById(R.id.model_spinner);
+    deviceSpinner = findViewById(R.id.device_spinner);
     bottomSheetLayout = findViewById(R.id.bottom_sheet_layout);
     gestureLayout = findViewById(R.id.gesture_layout);
     sheetBehavior = BottomSheetBehavior.from(bottomSheetLayout);
@@ -172,7 +170,8 @@ public abstract class CameraActivity extends AppCompatActivity
     cropValueTextView = findViewById(R.id.crop_info);
     inferenceTimeTextView = findViewById(R.id.inference_info);
 
-    apiSwitchCompat.setOnCheckedChangeListener(this);
+    modelSpinner.setOnItemSelectedListener(this);
+    deviceSpinner.setOnItemSelectedListener(this);
 
     plusImageView.setOnClickListener(this);
     minusImageView.setOnClickListener(this);
@@ -499,24 +498,6 @@ public abstract class CameraActivity extends AppCompatActivity
   }
 
   @Override
-  public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-    setUseNNAPI(isChecked);
-    if (isChecked) {
-      apiSwitchCompat.setText("NNAPI");
-    } else {
-      apiSwitchCompat.setText("TFLITE");
-    }
-  }
-
-  private void setUseNNAPI(boolean useNNAPI) {
-    if (this.useNNAPI != useNNAPI) {
-      LOGGER.d("Updating useNNAPI: " + useNNAPI);
-      this.useNNAPI = useNNAPI;
-      onInferenceConfigurationChanged();
-    }
-  }
-
-  @Override
   public void onClick(View v) {
     if (v.getId() == R.id.plus) {
       String threads = threadsTextView.getText().toString().trim();
@@ -545,6 +526,36 @@ public abstract class CameraActivity extends AppCompatActivity
     }
   }
 
+  @Override
+  public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
+    if (parent == modelSpinner) {
+      setModel(Model.valueOf("V3_TINY_" + parent.getItemAtPosition(pos).toString().toUpperCase().replaceAll(" ", "_")));
+    } else if (parent == deviceSpinner) {
+      setDevice(Device.valueOf(parent.getItemAtPosition(pos).toString()));
+    }
+  }
+
+  @Override
+  public void onNothingSelected(AdapterView<?> parent) {
+    // Do nothing.
+  }
+
+  private void setModel(Model model) {
+    if (this.model != model) {
+      LOGGER.d("Updating  model: " + model);
+      this.model = model;
+      onInferenceConfigurationChanged();
+    }
+  }
+
+  private void setDevice(Device device) {
+    if (this.device != device) {
+      LOGGER.d("Updating  device: " + device);
+      this.device = device;
+      onInferenceConfigurationChanged();
+    }
+  }
+
   public Model getModel() {
     return model;
   }
@@ -559,10 +570,6 @@ public abstract class CameraActivity extends AppCompatActivity
 
   public float getMinimumConfidence() {
     return minimumConfidence;
-  }
-
-  public boolean getUseNNNAPI() {
-    return useNNAPI;
   }
 
   protected void showFrameInfo(String frameInfo) {

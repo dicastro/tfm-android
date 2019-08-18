@@ -3,4 +3,17 @@
     <string name="description_info">Info</string>
     <string name="request_permission">This app needs camera permission.</string>
     <string name="camera_error">This device doesn\'t support Camera2 API.</string>
+
+    <string name="model">YOLO v3 Tiny model:</string>
+    <string-array name="models">
+        <item>256</item>
+        <item>416</item>
+        <item>416 Quant</item>
+    </string-array>
+
+    <string name="device">Device:</string>
+    <string-array name="devices">
+        <item>CPU</item>
+        <item>GPU</item>
+    </string-array>
 </resources>

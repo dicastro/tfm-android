@@ -95,14 +95,8 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
     LOGGER.i("Initializing at size %dx%d", previewWidth, previewHeight);
     rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Config.ARGB_8888);
-    croppedBitmap = Bitmap.createBitmap(detector.getImageSizeX(), detector.getImageSizeY(), Config.ARGB_8888);
 
-    frameToCropTransform = ImageUtils.getEnvelopeTransformationMatrix(previewWidth, previewHeight, detector.getImageSizeX(), detector.getImageSizeY());
-
-//    frameToCropTransform = ImageUtils.getTransformationMatrix(previewWidth, previewHeight, detector.getImageSizeX(), detector.getImageSizeY(), sensorOrientation, MAINTAIN_ASPECT);
-
-    cropToFrameTransform = new Matrix();
-    frameToCropTransform.invert(cropToFrameTransform);
+    updateCroppingConfig();
 
     trackingOverlay = findViewById(R.id.tracking_overlay);
 
@@ -117,6 +111,17 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
     });
 
     tracker.setFrameConfiguration(previewWidth, previewHeight, sensorOrientation);
+  }
+
+  private void updateCroppingConfig() {
+    croppedBitmap = Bitmap.createBitmap(detector.getImageSizeX(), detector.getImageSizeY(), Config.ARGB_8888);
+
+    frameToCropTransform = ImageUtils.getEnvelopeTransformationMatrix(previewWidth, previewHeight, detector.getImageSizeX(), detector.getImageSizeY());
+
+//    frameToCropTransform = ImageUtils.getTransformationMatrix(previewWidth, previewHeight, detector.getImageSizeX(), detector.getImageSizeY(), sensorOrientation, MAINTAIN_ASPECT);
+
+    cropToFrameTransform = new Matrix();
+    frameToCropTransform.invert(cropToFrameTransform);
   }
 
   @Override
@@ -219,6 +224,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
     try {
       LOGGER.d("Creating classifier (model=%s, device=%s, numThreads=%d)", model, device, numThreads);
       detector = Classifier.create(this, model, device, numThreads, minimumConfidence);
+      updateCroppingConfig();
     } catch (IOException e) {
       LOGGER.e(e, "Failed to create classifier.");
     }

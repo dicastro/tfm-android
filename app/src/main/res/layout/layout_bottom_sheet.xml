@@ -158,29 +158,46 @@
         android:layout_marginTop="10dp"
         android:background="@android:color/darker_gray" />
 
-    <!-- TODO(b/112541284): Unhide when new NNAPI delegate is used. -->
-    <LinearLayout
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:visibility="gone">
+        android:orientation="horizontal">
 
         <TextView
-            android:id="@+id/api"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="API"
+            android:text="@string/model"
             android:textColor="@android:color/black" />
 
-        <android.support.v7.widget.SwitchCompat
-            android:id="@+id/api_info_switch"
-            android:layout_width="match_parent"
+        <Spinner
+            android:id="@+id/model_spinner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentRight="true"
+            android:layout_marginTop="10dp"
+            android:entries="@array/models"
+            android:prompt="@string/model" />
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:checked="false"
-            android:gravity="right"
-            android:text="TFLITE"
+            android:text="@string/device"
             android:textColor="@android:color/black" />
-    </LinearLayout>
+
+        <Spinner
+            android:id="@+id/device_spinner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:layout_alignParentRight="true"
+            android:entries="@array/devices"
+            android:prompt="@string/device" />
+    </RelativeLayout>
 </LinearLayout>
