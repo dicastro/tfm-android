@@ -35,9 +35,7 @@ import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.PriorityQueue;
 
 /** Generic interface for interacting with different recognition engines. */
 public abstract class Classifier {
@@ -45,7 +43,7 @@ public abstract class Classifier {
 
   /** The model type used for classification. */
   public enum Model {
-    V3_TINY_PRODUCTION, V3_TINY_DEBUG
+    V3_TINY_256_PROD, V3_TINY_416_PROD, V3_TINY_416_QUANTA_PROD, V3_TINY_256_DEBUG
   }
 
   /** The runtime device type used for executing classification. */
@@ -60,7 +58,10 @@ public abstract class Classifier {
   private int[] intValues = new int[getImageSizeX() * getImageSizeY()];
 
   /** Options for configuring the Interpreter. */
-  private final Interpreter.Options tfliteOptions = new Interpreter.Options();
+//  private final Interpreter.Options tfliteOptions = new Interpreter.Options();
+
+  private final int numThreads;
+  private final Device device;
 
   /** The loaded TensorFlow Lite model. */
   private MappedByteBuffer tfliteModel;
@@ -75,12 +76,14 @@ public abstract class Classifier {
   protected static final int DIM_CHANNEL_SIZE = 3;
 
   /** An instance of the driver class to run model inference with Tensorflow Lite. */
-  protected Interpreter tflite;
+  private Interpreter tflite;
 
   /** A ByteBuffer to hold image data, to be feed into Tensorflow Lite as inputs. */
   protected ByteBuffer imgData;
 
   protected float minimumConfidence;
+
+  private long tfliteThread;
 
   /**
    * Creates a classifier with the provided configuration.
@@ -95,11 +98,17 @@ public abstract class Classifier {
     Classifier classifier;
 
     switch (model) {
-      case V3_TINY_DEBUG:
-        classifier = new TFLiteYoloV3TinyDebugAPIModel(activity, device, numThreads, minimumConfidence);
+      case V3_TINY_256_DEBUG:
+        classifier = new TFLiteYoloV3Tiny256DebugAPIModel(activity, device, numThreads, minimumConfidence);
+        break;
+      case V3_TINY_416_PROD:
+        classifier = new TFLiteYoloV3Tiny416APIModel(activity, device, numThreads, minimumConfidence);
+        break;
+      case V3_TINY_416_QUANTA_PROD:
+        classifier = new TFLiteYoloV3Tiny416QuantAAPIModel(activity, device, numThreads, minimumConfidence);
         break;
       default:
-        classifier = new TFLiteYoloV3TinyAPIModel(activity, device, numThreads, minimumConfidence);
+        classifier = new TFLiteYoloV3Tiny256APIModel(activity, device, numThreads, minimumConfidence);
         break;
     }
 
@@ -110,20 +119,24 @@ public abstract class Classifier {
   protected Classifier(Activity activity, Device device, int numThreads, float minimumConfidence) throws IOException {
     tfliteModel = loadModelFile(activity);
 
-    switch (device) {
-      case NNAPI:
-        tfliteOptions.setUseNNAPI(true);
-        break;
-      case GPU:
-        gpuDelegate = new GpuDelegate();
-        tfliteOptions.addDelegate(gpuDelegate);
-        break;
-      case CPU:
-        break;
-    }
+//    switch (device) {
+//      case NNAPI:
+//        tfliteOptions.setUseNNAPI(true);
+//        break;
+//      case GPU:
+//        gpuDelegate = new GpuDelegate();
+//        tfliteOptions.addDelegate(gpuDelegate);
+//        break;
+//      case CPU:
+//        break;
+//    }
+//
+//    tfliteOptions.setNumThreads(numThreads);
 
-    tfliteOptions.setNumThreads(numThreads);
-    tflite = new Interpreter(tfliteModel, tfliteOptions);
+    this.device = device;
+    this.numThreads = numThreads;
+
+//    tflite = new Interpreter(tfliteModel, tfliteOptions);
     this.minimumConfidence = minimumConfidence;
 
     labels = loadLabelList(activity);
@@ -131,6 +144,32 @@ public abstract class Classifier {
     imgData.order(ByteOrder.nativeOrder());
 
     LOGGER.d("Created a Tensorflow Lite Image Classifier.");
+  }
+
+  protected Interpreter getInterpreter() {
+    if (tflite == null || tfliteThread != Thread.currentThread().getId()) {
+      tfliteThread = Thread.currentThread().getId();
+
+      final Interpreter.Options tfliteOptions = new Interpreter.Options();
+
+      switch (device) {
+        case NNAPI:
+          tfliteOptions.setUseNNAPI(true);
+          break;
+        case GPU:
+          gpuDelegate = new GpuDelegate();
+          tfliteOptions.addDelegate(gpuDelegate);
+          break;
+        case CPU:
+          break;
+      }
+
+      tfliteOptions.setNumThreads(numThreads);
+
+      tflite = new Interpreter(tfliteModel, tfliteOptions);
+    }
+
+    return tflite;
   }
 
   /** Reads label list from Assets. */

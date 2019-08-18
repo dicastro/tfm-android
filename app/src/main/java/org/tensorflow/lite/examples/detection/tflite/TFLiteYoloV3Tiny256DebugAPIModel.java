@@ -46,20 +46,12 @@ import java.util.Vector;
  * Wrapper for frozen detection models trained using the Tensorflow Object Detection API:
  * github.com/tensorflow/models/tree/master/research/object_detection
  */
-public class TFLiteYoloV3TinyDebugAPIModel extends YoloClassifier {
-  // outputLocations
-  private float[][][][] output1 = new float[1][8][8][18];
-  private float[][][][] output2 = new float[1][16][16][18];
-
-  // anchors
-  private int[] anchors1 = new int[] { 39,8, 44,13, 71,19 };
-  private int[] anchors2 = new int[] { 18,6, 25,7, 26,11 };
-
+public class TFLiteYoloV3Tiny256DebugAPIModel extends YoloClassifier {
   private final YoloOutputs outputs;
 
   private final int[][][] loadedIntValues;
 
-  public TFLiteYoloV3TinyDebugAPIModel(Activity activity, Device device, int numThreads, float minimumConfidence) throws IOException {
+  public TFLiteYoloV3Tiny256DebugAPIModel(Activity activity, Device device, int numThreads, float minimumConfidence) throws IOException {
     super(activity, device, numThreads, minimumConfidence);
 
     outputs = new YoloOutputs()
@@ -134,22 +126,17 @@ public class TFLiteYoloV3TinyDebugAPIModel extends YoloClassifier {
 
     Object[] inputArray = {imgData};
     Map<Integer, Object> outputMap = new HashMap<>();
-//    outputMap.put(0, output1);
-//    outputMap.put(1, output2);
 
     for (YoloOutput yoloOutput : outputs.getOutputs()) {
       outputMap.put(yoloOutput.getIndex(), yoloOutput.getOutput());
     }
 
-    tflite.runForMultipleInputsOutputs(inputArray, outputMap);
+    getInterpreter().runForMultipleInputsOutputs(inputArray, outputMap);
   }
 
   @Override
   protected List<Recognition> postprocessResults() {
     final List<Recognition> recognitions = new ArrayList<>();
-
-//    recognitions.addAll(decodeNetout(output1[0], 8, 8, anchors1, minimumConfidence));
-//    recognitions.addAll(decodeNetout(output2[0], 16, 16, anchors2, minimumConfidence));
 
     for (YoloOutput yoloOutput : outputs.getOutputs()) {
       recognitions.addAll(decodeNetout(yoloOutput.getOutput()[0], yoloOutput.getGridHeight(), yoloOutput.getGridWidth(), yoloOutput.getAnchors(), minimumConfidence));
@@ -191,7 +178,7 @@ public class TFLiteYoloV3TinyDebugAPIModel extends YoloClassifier {
 
   @Override
   protected String getModelPath() {
-    return "vC1_model_best_weights.tflite";
+    return "vB3_model_best_weights_256.tflite";
   }
 
 //  public List<Recognition> recognizeImage(final Bitmap bitmap, final int[][][] loadedIntValues) {

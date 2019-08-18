@@ -210,11 +210,11 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
       detector = null;
     }
 
-    if (device == Device.GPU) {
-      LOGGER.d("Not creating classifier: GPU doesn't support quantized models.");
-      runOnUiThread(() -> Toast.makeText(this, "GPU does not fully supported.", Toast.LENGTH_LONG).show());
-      return;
-    }
+//    if (device == Device.GPU) {
+//      LOGGER.d("Not creating classifier: GPU doesn't support quantized models.");
+//      runOnUiThread(() -> Toast.makeText(this, "GPU does not fully supported.", Toast.LENGTH_LONG).show());
+//      return;
+//    }
 
     try {
       LOGGER.d("Creating classifier (model=%s, device=%s, numThreads=%d)", model, device, numThreads);
