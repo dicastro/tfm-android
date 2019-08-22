@@ -17,6 +17,7 @@
 package org.tensorflow.lite.examples.detection;
 
 import android.Manifest;
+import android.Manifest.permission;
 import android.app.Fragment;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -62,6 +63,8 @@ public abstract class CameraActivity extends AppCompatActivity
   private static final int PERMISSIONS_REQUEST = 1;
 
   private static final String PERMISSION_CAMERA = Manifest.permission.CAMERA;
+  private static final String PERMISSION_WRITE_EXTERNAL_STORAGE = permission.WRITE_EXTERNAL_STORAGE;
+
   protected int previewWidth = 0;
   protected int previewHeight = 0;
   private boolean debug = false;
@@ -88,7 +91,7 @@ public abstract class CameraActivity extends AppCompatActivity
 
   private Model model = Model.V3_TINY_256;
 //  private Model model = Model.V3_TINY_256_DEBUG;
-  private Device device = Device.GPU;
+  private Device device = Device.CPU;
   private int numThreads = -1;
   private float minimumConfidence = 0.5f;
 
@@ -350,8 +353,7 @@ public abstract class CameraActivity extends AppCompatActivity
   }
 
   @Override
-  public void onRequestPermissionsResult(
-      final int requestCode, final String[] permissions, final int[] grantResults) {
+  public void onRequestPermissionsResult(final int requestCode, final String[] permissions, final int[] grantResults) {
     if (requestCode == PERMISSIONS_REQUEST) {
       // TODO: revisar esto porque da un ArrayIndexOutOfBoundsException
       if (grantResults.length > 0
@@ -366,7 +368,8 @@ public abstract class CameraActivity extends AppCompatActivity
 
   private boolean hasPermission() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-      return checkSelfPermission(PERMISSION_CAMERA) == PackageManager.PERMISSION_GRANTED;
+      return checkSelfPermission(PERMISSION_CAMERA) == PackageManager.PERMISSION_GRANTED
+              && checkSelfPermission(PERMISSION_WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
     } else {
       return true;
     }
@@ -375,41 +378,44 @@ public abstract class CameraActivity extends AppCompatActivity
   private void requestPermission() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
       if (shouldShowRequestPermissionRationale(PERMISSION_CAMERA)) {
-        Toast.makeText(
-                CameraActivity.this,
-                "Camera permission is required for this demo",
-                Toast.LENGTH_LONG)
-            .show();
+        Toast.makeText(CameraActivity.this,"Camera permission is required for this app", Toast.LENGTH_LONG).show();
       }
-      requestPermissions(new String[] {PERMISSION_CAMERA}, PERMISSIONS_REQUEST);
+
+      if (shouldShowRequestPermissionRationale(PERMISSION_WRITE_EXTERNAL_STORAGE)) {
+        Toast.makeText(CameraActivity.this,"Write in external storage permission is required for this app", Toast.LENGTH_LONG).show();
+      }
+
+      requestPermissions(new String[] {PERMISSION_CAMERA, PERMISSION_WRITE_EXTERNAL_STORAGE}, PERMISSIONS_REQUEST);
     }
   }
 
   // Returns true if the device supports the required hardware level, or better.
-  private boolean isHardwareLevelSupported(
-      CameraCharacteristics characteristics, int requiredLevel) {
+  private boolean isHardwareLevelSupported(CameraCharacteristics characteristics, int requiredLevel) {
     int deviceLevel = characteristics.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL);
+
     if (deviceLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY) {
       return requiredLevel == deviceLevel;
     }
+
     // deviceLevel is not LEGACY, can use numerical sort
     return requiredLevel <= deviceLevel;
   }
 
   private String chooseCamera() {
     final CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+
     try {
       for (final String cameraId : manager.getCameraIdList()) {
         final CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
 
         // We don't use a front facing camera in this sample.
         final Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+
         if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
           continue;
         }
 
-        final StreamConfigurationMap map =
-            characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+        final StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
 
         if (map == null) {
           continue;
@@ -418,10 +424,7 @@ public abstract class CameraActivity extends AppCompatActivity
         // Fallback to camera1 API for internal cameras that don't have full support.
         // This should help with legacy situations where using the camera2 API causes
         // distorted or otherwise broken previews.
-        useCamera2API =
-            (facing == CameraCharacteristics.LENS_FACING_EXTERNAL)
-                || isHardwareLevelSupported(
-                    characteristics, CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL);
+        useCamera2API = (facing == CameraCharacteristics.LENS_FACING_EXTERNAL) || isHardwareLevelSupported(characteristics, CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL);
         LOGGER.i("Camera API lv2?: %s", useCamera2API);
         return cameraId;
       }
@@ -437,25 +440,22 @@ public abstract class CameraActivity extends AppCompatActivity
 
     Fragment fragment;
     if (useCamera2API) {
-      CameraConnectionFragment camera2Fragment =
-          CameraConnectionFragment.newInstance(
-              new CameraConnectionFragment.ConnectionCallback() {
-                @Override
-                public void onPreviewSizeChosen(final Size size, final int rotation) {
-                  previewHeight = size.getHeight();
-                  previewWidth = size.getWidth();
-                  CameraActivity.this.onPreviewSizeChosen(size, rotation);
-                }
-              },
-              this,
-              getLayoutId(),
-              getDesiredPreviewFrameSize());
+      CameraConnectionFragment camera2Fragment = CameraConnectionFragment.newInstance(new CameraConnectionFragment.ConnectionCallback() {
+          @Override
+          public void onPreviewSizeChosen(final Size size, final int rotation) {
+            previewHeight = size.getHeight();
+            previewWidth = size.getWidth();
+            CameraActivity.this.onPreviewSizeChosen(size, rotation);
+          }
+        },
+        this,
+        getLayoutId(),
+        getDesiredPreviewFrameSize());
 
       camera2Fragment.setCamera(cameraId);
       fragment = camera2Fragment;
     } else {
-      fragment =
-          new LegacyCameraConnectionFragment(this, getLayoutId(), getDesiredPreviewFrameSize());
+      fragment = new LegacyCameraConnectionFragment(this, getLayoutId(), getDesiredPreviewFrameSize());
     }
 
     getFragmentManager().beginTransaction().replace(R.id.container, fragment).commit();
