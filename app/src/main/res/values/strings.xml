@@ -8,7 +8,6 @@
     <string-array name="models">
         <item>256</item>
         <item>416</item>
-        <item>416 Quant</item>
     </string-array>
 
     <string name="device">Device:</string>

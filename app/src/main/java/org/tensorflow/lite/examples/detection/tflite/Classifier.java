@@ -43,7 +43,7 @@ public abstract class Classifier {
 
   /** The model type used for classification. */
   public enum Model {
-    V3_TINY_256, V3_TINY_416, V3_TINY_416_QUANT, V3_TINY_256_DEBUG
+    V3_TINY_256, V3_TINY_416, V3_TINY_256_DEBUG
   }
 
   /** The runtime device type used for executing classification. */
@@ -103,9 +103,6 @@ public abstract class Classifier {
         break;
       case V3_TINY_416:
         classifier = new TFLiteYoloV3Tiny416APIModel(activity, device, numThreads, minimumConfidence);
-        break;
-      case V3_TINY_416_QUANT:
-        classifier = new TFLiteYoloV3Tiny416QuantAAPIModel(activity, device, numThreads, minimumConfidence);
         break;
       default:
         classifier = new TFLiteYoloV3Tiny256APIModel(activity, device, numThreads, minimumConfidence);
