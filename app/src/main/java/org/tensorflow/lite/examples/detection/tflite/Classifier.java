@@ -116,24 +116,9 @@ public abstract class Classifier {
   protected Classifier(Activity activity, Device device, int numThreads, float minimumConfidence) throws IOException {
     tfliteModel = loadModelFile(activity);
 
-//    switch (device) {
-//      case NNAPI:
-//        tfliteOptions.setUseNNAPI(true);
-//        break;
-//      case GPU:
-//        gpuDelegate = new GpuDelegate();
-//        tfliteOptions.addDelegate(gpuDelegate);
-//        break;
-//      case CPU:
-//        break;
-//    }
-//
-//    tfliteOptions.setNumThreads(numThreads);
-
     this.device = device;
     this.numThreads = numThreads;
 
-//    tflite = new Interpreter(tfliteModel, tfliteOptions);
     this.minimumConfidence = minimumConfidence;
 
     labels = loadLabelList(activity);
