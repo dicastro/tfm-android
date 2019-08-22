@@ -52,7 +52,7 @@ import java.util.List;
 public class DetectorActivity extends CameraActivity implements OnImageAvailableListener {
   private static final Logger LOGGER = new Logger();
 
-  private static final boolean MAINTAIN_ASPECT = false;
+  private static final boolean MAINTAIN_ASPECT = true;
   private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
   private static final boolean SAVE_PREVIEW_BITMAP = false;
 
@@ -79,6 +79,10 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
   public void onPreviewSizeChosen(final Size size, final int rotation) {
     tracker = new MultiBoxTracker(this);
 
+    sensorOrientation = rotation - getScreenOrientation();
+//    sensorOrientation = rotation - getScreenOrientation() - 90; // rotation is always 90, I do not understand why (this parameter is fixed and comes from CameraActivity class)
+    LOGGER.i("Camera orientation relative to screen canvas: %d", sensorOrientation);
+
     recreateClassifier(getModel(), getDevice(), getNumThreads(), getMinimumConfidence());
 
     if (detector == null) {
@@ -88,10 +92,6 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
     previewWidth = size.getWidth();
     previewHeight = size.getHeight();
-
-    sensorOrientation = rotation - getScreenOrientation();
-//    sensorOrientation = rotation - getScreenOrientation() - 90; // rotation is always 90, I do not understand why (this parameter is fixed and comes from CameraActivity class)
-    LOGGER.i("Camera orientation relative to screen canvas: %d", sensorOrientation);
 
     LOGGER.i("Initializing at size %dx%d", previewWidth, previewHeight);
     rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Config.ARGB_8888);
@@ -116,9 +116,9 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
   private void updateCroppingConfig() {
     croppedBitmap = Bitmap.createBitmap(detector.getImageSizeX(), detector.getImageSizeY(), Config.ARGB_8888);
 
-    frameToCropTransform = ImageUtils.getEnvelopeTransformationMatrix(previewWidth, previewHeight, detector.getImageSizeX(), detector.getImageSizeY());
+//    frameToCropTransform = ImageUtils.getEnvelopeTransformationMatrix(previewWidth, previewHeight, detector.getImageSizeX(), detector.getImageSizeY());
 
-//    frameToCropTransform = ImageUtils.getTransformationMatrix(previewWidth, previewHeight, detector.getImageSizeX(), detector.getImageSizeY(), sensorOrientation, MAINTAIN_ASPECT);
+    frameToCropTransform = ImageUtils.getTransformationMatrix(previewWidth, previewHeight, detector.getImageSizeX(), detector.getImageSizeY(), sensorOrientation, MAINTAIN_ASPECT);
 
     cropToFrameTransform = new Matrix();
     frameToCropTransform.invert(cropToFrameTransform);

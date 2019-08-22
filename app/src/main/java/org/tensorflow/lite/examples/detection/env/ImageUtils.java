@@ -201,10 +201,13 @@ public class ImageUtils {
         // Scale by minimum factor so that dst is filled completely while
         // maintaining the aspect ratio. Some image may fall off the edge.
         final float scaleFactor = Math.max(scaleFactorX, scaleFactorY);
-        matrix.postScale(scaleFactor, scaleFactor);
+        matrix.setScale(scaleFactor, scaleFactor);
+
+        //matrix.preTranslate(-((inWidth * scaleFactor) - dstWidth), 0.0f);
+        matrix.preTranslate(-Math.abs((inWidth - inHeight)) / 2.0f, 0.0f);
       } else {
         // Scale exactly to fill dst from src.
-        matrix.postScale(scaleFactorX, scaleFactorY);
+        matrix.preScale(scaleFactorX, scaleFactorY);
       }
     }
 
